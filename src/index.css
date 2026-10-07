@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body { @apply bg-slate-50 text-slate-800 antialiased; }
+  input, select, textarea { @apply text-base sm:text-sm; } /* 16px on phones prevents iOS zoom */
+}
