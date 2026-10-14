@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import type { InvRow, Lookups } from "@/lib/types";
 import { Button, Card, ErrorNote, Field, Input, PageHeader, Select, Spinner } from "@/components/ui";
 import { inr } from "@/lib/format";
+import { SqlInspector, sqlCreateShipment } from "@/components/SqlInspector";
 
 interface Line { product_id: string; qty: string }
 
@@ -93,6 +94,22 @@ export default function ShipmentNew() {
         </Card>
 
         {create.error && <ErrorNote error={create.error} />}
+
+        {/* Live SQL preview — updates as the user fills the form */}
+        {(warehouse || dest || lines.some(l => l.product_id)) && (
+          <SqlInspector
+            title="SQL that will run when you click Create shipment"
+            blocks={sqlCreateShipment(
+              Number(warehouse) || 0,
+              Number(carrier) || 0,
+              dest || "<destination>",
+              lines.filter(l => l.product_id && Number(l.qty) > 0)
+                   .map(l => ({ product_id: Number(l.product_id), quantity_shipped: Number(l.qty) }))
+            )}
+            defaultOpen={true}
+          />
+        )}
+
         <div className="flex justify-end gap-2">
           <Link to="/shipments"><Button type="button" variant="secondary">Cancel</Button></Link>
           <Button type="submit" loading={create.isPending} disabled={!valid}>Create shipment</Button>

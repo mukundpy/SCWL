@@ -8,6 +8,7 @@ import { api, qs } from "@/lib/api";
 import type { InvRow, Lookups } from "@/lib/types";
 import { Badge, Button, Card, DataTable, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner } from "@/components/ui";
 import { fmtDateTime, num } from "@/lib/format";
+import { SqlInspector, sqlAdjustStock, sqlUpdateThreshold } from "@/components/SqlInspector";
 
 interface Movement { movement_id: number; created_at: string; product_name: string; sku: string; warehouse_name: string; change_qty: number; reason: string; shipment_id: number | null; note: string | null }
 
@@ -147,6 +148,23 @@ function StockModal({ row, lookups, onClose }: { row?: InvRow; lookups: Lookups;
         <Field label="Reorder level" hint="Alert when stock falls to this"><Input type="number" inputMode="numeric" min={0} value={threshold} onChange={e => setThreshold(e.target.value)} /></Field>
       </div>
       <Field label="Note (optional)"><Input value={note} maxLength={200} placeholder={row ? "e.g. cycle count correction" : "e.g. PO #1234"} onChange={e => setNote(e.target.value)} /></Field>
+
+      {/* Live SQL preview */}
+      {product && warehouse && (Number(qty) > 0 || (row && threshold !== "" && Number(threshold) !== row?.reorder_threshold)) && (
+        <SqlInspector
+          title="SQL that will run on Save"
+          defaultOpen={true}
+          blocks={[
+            ...(Number(qty) > 0
+              ? sqlAdjustStock(Number(product), Number(warehouse), dir === "add" ? Number(qty) : -Number(qty), dir === "add" ? "RECEIPT" : "ADJUSTMENT", note || undefined)
+              : []),
+            ...(row && threshold !== "" && Number(threshold) !== row.reorder_threshold
+              ? sqlUpdateThreshold(Number(product), Number(warehouse), Number(threshold))
+              : []),
+          ]}
+        />
+      )}
+
       {save.error && <ErrorNote error={save.error} />}
     </Modal>
   );

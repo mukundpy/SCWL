@@ -8,6 +8,7 @@ import type { LogRow, ShipmentRow, Status } from "@/lib/types";
 import { Button, Card, Confirm, ErrorNote, Field, Input, Modal, Spinner, StatusBadge } from "@/components/ui";
 import { Stepper, Timeline } from "@/components/Tracking";
 import { fmtDateTime, inr } from "@/lib/format";
+import { SqlInspector, sqlSetStatus, sqlCancelShipment, sqlDeleteShipment, sqlAddLog, type SqlBlock } from "@/components/SqlInspector";
 
 interface Detail {
   shipment: ShipmentRow;
@@ -34,10 +35,20 @@ export default function ShipmentDetail() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
 
+  // Track the last SQL blocks shown below the action area
+  const [lastSql, setLastSql] = useState<SqlBlock[] | null>(null);
+  const [lastSqlTitle, setLastSqlTitle] = useState("");
+
   const refresh = () => ["shipments", "dashboard", "inventory", "movements", "warehouses"].forEach(k => qc.invalidateQueries({ queryKey: [k] }));
   const changeStatus = useMutation({
     mutationFn: (v: { status: Status; location?: string }) => api.post(`/shipments/${id}/status`, v),
-    onSuccess: (_d, v) => { toast.success(`Status: ${v.status}`); setStep(null); setCancelOpen(false); setLocation(""); qc.invalidateQueries({ queryKey: key }); refresh(); },
+    onSuccess: (_d, v) => {
+      toast.success(`Status: ${v.status}`);
+      setLastSql(sqlSetStatus(Number(id), v.status, v.location));
+      setLastSqlTitle(`SQL: Set status → ${v.status}`);
+      setStep(null); setCancelOpen(false); setLocation("");
+      qc.invalidateQueries({ queryKey: key }); refresh();
+    },
     onError: (e: Error) => { toast.error(e.message); setStep(null); setCancelOpen(false); },
   });
   const remove = useMutation({
@@ -59,6 +70,11 @@ export default function ShipmentDetail() {
   const Info = ({ label, children }: { label: string; children: ReactNode }) => (
     <div><dt className="text-xs text-slate-400">{label}</dt><dd className="text-sm text-slate-800">{children}</dd></div>);
 
+  // SQL preview for hover on the action buttons
+  const nextSqlBlocks = next ? sqlSetStatus(Number(id), next.to) : [];
+  const cancelSqlBlocks = sqlCancelShipment(Number(id), s.current_status === "Dispatched");
+  const deleteSqlBlocks = sqlDeleteShipment(Number(id));
+
   return (
     <div className="mx-auto max-w-4xl">
       <Link to="/shipments" className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800"><ArrowLeft className="h-4 w-4" />Shipments</Link>
@@ -69,11 +85,24 @@ export default function ShipmentDetail() {
           <StatusBadge status={s.current_status} />
         </div>
         <div className="flex flex-wrap gap-2">
-          {canDelete && <Button variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => setDeleteOpen(true)}><Trash2 className="h-4 w-4" />Delete</Button>}
-          {canCancel && <Button variant="secondary" onClick={() => setCancelOpen(true)}>Cancel shipment</Button>}
-          {next && <Button onClick={() => setStep(next)}>{next.label}</Button>}
+          {canDelete && <Button variant="ghost" className="text-red-600 hover:bg-red-50"
+            onMouseEnter={() => { setLastSql(deleteSqlBlocks); setLastSqlTitle("SQL: Delete shipment"); }}
+            onClick={() => setDeleteOpen(true)}><Trash2 className="h-4 w-4" />Delete</Button>}
+          {canCancel && <Button variant="secondary"
+            onMouseEnter={() => { setLastSql(cancelSqlBlocks); setLastSqlTitle("SQL: Cancel shipment"); }}
+            onClick={() => setCancelOpen(true)}>Cancel shipment</Button>}
+          {next && <Button
+            onMouseEnter={() => { setLastSql(nextSqlBlocks); setLastSqlTitle(`SQL: ${next.label}`); }}
+            onClick={() => setStep(next)}>{next.label}</Button>}
         </div>
       </div>
+
+      {/* SQL Inspector — shows on hover or after an operation */}
+      {lastSql && (
+        <div className="mb-5">
+          <SqlInspector title={lastSqlTitle} blocks={lastSql} defaultOpen={true} />
+        </div>
+      )}
 
       <Card className="mb-5 p-5"><Stepper status={s.current_status} /></Card>
 
@@ -121,6 +150,11 @@ export default function ShipmentDetail() {
           <Button loading={changeStatus.isPending} onClick={() => step && changeStatus.mutate({ status: step.to, location })}>{step?.label}</Button></>}>
         <p className="text-sm text-slate-600">{step?.hint}</p>
         <Field label="Location (optional)" hint="Shown on the tracking timeline"><Input value={location} maxLength={100} placeholder="e.g. Thane checkpoint" onChange={e => setLocation(e.target.value)} /></Field>
+        {step && (
+          <div className="mt-4">
+            <SqlInspector title={`SQL that will run on confirm`} blocks={sqlSetStatus(Number(id), step.to, location || undefined)} defaultOpen={true} />
+          </div>
+        )}
       </Modal>
 
       <Confirm open={cancelOpen} danger onClose={() => setCancelOpen(false)} loading={changeStatus.isPending} confirmLabel="Cancel shipment"
@@ -129,23 +163,34 @@ export default function ShipmentDetail() {
         onConfirm={() => changeStatus.mutate({ status: "Cancelled" })} />
       <Confirm open={deleteOpen} danger onClose={() => setDeleteOpen(false)} loading={remove.isPending} confirmLabel="Delete"
         title="Delete shipment?" message="This permanently removes the shipment and its tracking history." onConfirm={() => remove.mutate()} />
-      {logOpen && <LogModal id={id!} onClose={() => setLogOpen(false)} onSaved={() => { setLogOpen(false); qc.invalidateQueries({ queryKey: key }); }} />}
+      {logOpen && <LogModal id={id!} onClose={() => setLogOpen(false)}
+        onSaved={(loc, txt) => {
+          setLogOpen(false);
+          setLastSql(sqlAddLog(Number(id), loc, txt));
+          setLastSqlTitle("SQL: Add tracking checkpoint");
+          qc.invalidateQueries({ queryKey: key });
+        }} />}
     </div>
   );
 }
 
-function LogModal({ id, onClose, onSaved }: { id: string; onClose: () => void; onSaved: () => void }) {
+function LogModal({ id, onClose, onSaved }: { id: string; onClose: () => void; onSaved: (loc: string, txt: string) => void }) {
   const [location, setLocation] = useState("");
   const [text, setText] = useState("");
   const save = useMutation({
     mutationFn: () => api.post(`/shipments/${id}/logs`, { location, status_update: text }),
-    onSuccess: () => { toast.success("Checkpoint added"); onSaved(); },
+    onSuccess: () => { toast.success("Checkpoint added"); onSaved(location, text); },
   });
   return (
     <Modal open onClose={onClose} title="Add checkpoint"
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={save.isPending} disabled={!location.trim() || !text.trim()} onClick={() => save.mutate()}>Add</Button></>}>
       <Field label="Location *"><Input autoFocus value={location} maxLength={100} placeholder="e.g. Gurugram Hub" onChange={e => setLocation(e.target.value)} /></Field>
       <Field label="Update *"><Input value={text} maxLength={100} placeholder="e.g. Arrived at sorting hub" onChange={e => setText(e.target.value)} /></Field>
+      {location && text && (
+        <div className="mt-3">
+          <SqlInspector title="SQL that will run" blocks={sqlAddLog(Number(id), location, text)} defaultOpen={true} />
+        </div>
+      )}
       {save.error && <ErrorNote error={save.error} />}
     </Modal>
   );

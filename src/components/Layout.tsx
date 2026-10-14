@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, Boxes, Truck, Package, Factory, Warehouse, Route, MapPin, Menu, X } from "lucide-react";
+import { LayoutDashboard, Boxes, Truck, Package, Factory, Warehouse, Route, MapPin, Menu, X, History } from "lucide-react";
 import clsx from "clsx";
 import { useEffect } from "react";
 
@@ -14,6 +14,8 @@ const nav = [
   { to: "/suppliers", label: "Suppliers", icon: Factory },
   { to: "/warehouses", label: "Warehouses", icon: Warehouse },
   { to: "/carriers", label: "Carriers", icon: Route },
+  { sep: "SQL History" },
+  { to: "/sql-history", label: "SQL Queries History", icon: History },
 ] as const;
 
 function NavList({ onNavigate }: { onNavigate?: () => void }) {

@@ -7,6 +7,7 @@ import ShipmentNew from "@/pages/ShipmentNew";
 import ShipmentDetail from "@/pages/ShipmentDetail";
 import Track from "@/pages/Track";
 import { Products, Suppliers, Warehouses, Carriers } from "@/pages/Master";
+import SqlHistory from "@/pages/SqlHistory";
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="suppliers" element={<Suppliers />} />
         <Route path="warehouses" element={<Warehouses />} />
         <Route path="carriers" element={<Carriers />} />
+        <Route path="sql-history" element={<SqlHistory />} />
         <Route path="*" element={
           <div className="py-20 text-center">
             <p className="text-lg font-medium">Page not found</p>

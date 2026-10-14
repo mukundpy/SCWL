@@ -23,3 +23,36 @@ export interface ShipmentRow {
 }
 
 export interface LogRow { log_id?: number; logged_at: string; checkpoint_location: string | null; status_update: string | null }
+
+export interface SqlQueryEntry {
+  id: string;
+  sql: string;
+  rawSql: string;
+  params: unknown[];
+  type: "SELECT" | "INSERT" | "UPDATE" | "DELETE" | "CALL" | "DDL" | "OTHER";
+  status: "success" | "error";
+  error: string | null;
+  durationMs: number;
+  rowsCount?: number;
+  affectedRows?: number;
+  insertId?: number;
+  timestamp: string;
+  date: string;
+  time: string;
+}
+
+export interface SqlHistoryStats {
+  total: number;
+  SELECT: number;
+  INSERT: number;
+  UPDATE: number;
+  DELETE: number;
+  CALL: number;
+  OTHER: number;
+}
+
+export interface SqlHistoryResponse {
+  queries: SqlQueryEntry[];
+  total: number;
+  stats: SqlHistoryStats;
+}

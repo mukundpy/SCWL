@@ -3,3 +3,4 @@ dist
 backend/node_modules
 backend/.env
 *.log
+backend/data/query-history.json

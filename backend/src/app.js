@@ -10,6 +10,7 @@ import { suppliers, products, warehouses, carriers, lookups } from './routes/mas
 import inventory from './routes/inventory.js';
 import shipments from './routes/shipments.js';
 import { dashboard, track } from './routes/dashboard.js';
+import sqlHistory from './routes/sqlHistory.js';
 import { pool } from './db.js';
 
 export const app = express();
@@ -33,6 +34,7 @@ app.use('/api/carriers', carriers);
 app.use('/api/inventory', inventory);
 app.use('/api/shipments', shipments);
 app.use('/api/track', track);
+app.use('/api/sql-history', sqlHistory);
 app.use('/api', (_req, res) => res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Unknown endpoint' } }));
 
 // In production, serve the built frontend from the same process
